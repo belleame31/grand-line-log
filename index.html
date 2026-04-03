@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Line Episode Tracker</title>
+    
+    <!-- Google Fonts for Pirate Theme -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- HTML to Canvas for PNG Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                        pirate: ['"Pirata One"', 'cursive'],
+                    },
+                    colors: {
+                        parchment: {
+                            light: '#fdf6e3',
+                            DEFAULT: '#f4ebd0',
+                            dark: '#e8d5a5'
+                        },
+                        wood: {
+                            DEFAULT: '#5c4033',
+                            dark: '#3e2723'
+                        },
+                        pirate: {
+                            red: '#8b0000',
+                            gold: '#ffd700'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom texture overlays */
+        body {
+            background-color: #f4ebd0;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+        }
+        .wanted-border {
+            border: 8px solid #5c4033;
+            box-shadow: inset 0 0 20px rgba(92, 64, 51, 0.5), 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .fade-out {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body class="text-wood-dark font-sans pb-12 selection:bg-pirate-red selection:text-pirate-gold overflow-x-hidden" id="body">
+
+    <!-- PASSWORD GATEWAY SCREEN -->
+    <div id="auth-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-[#1a1a1a] bg-opacity-95 backdrop-blur-sm p-4">
+        <div class="bg-parchment p-8 sm:p-12 rounded shadow-2xl max-w-md w-full text-center relative wanted-border">
+            <div class="w-16 h-16 bg-pirate-red rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-pirate-gold shadow-[0_0_15px_rgba(255,215,0,0.3)]">
+                <i data-lucide="anchor" class="w-8 h-8 text-pirate-gold"></i>
+            </div>
+            
+            <h2 class="text-5xl font-pirate text-wood-dark tracking-widest mb-2">Halt, Pirate!</h2>
+            <div class="w-full h-1 bg-wood-dark mb-4 opacity-50"></div>
+            
+            <p class="text-wood-dark font-black uppercase tracking-wider text-sm mb-8 opacity-80">
+                Marine Checkpoint.<br>Enter the secret passcode to access the Grand Line Tracker.
+            </p>
+            
+            <form id="auth-form" class="space-y-5">
+                <div>
+                    <input 
+                        type="password" 
+                        id="password-input" 
+                        placeholder="Password..." 
+                        class="w-full px-4 py-3 bg-parchment-light border-2 border-wood-dark rounded text-center text-xl font-bold text-wood-dark focus:outline-none focus:border-pirate-red focus:ring-2 focus:ring-pirate-red/30 shadow-inner"
+                    >
+                    <p id="auth-error" class="text-pirate-red font-black text-sm mt-2 hidden uppercase tracking-widest animate-pulse">
+                        <i data-lucide="skull" class="w-4 h-4 inline pb-0.5"></i> Incorrect Passcode!
+                    </p>
+                </div>
+                
+                <button type="submit" class="w-full bg-pirate-red hover:bg-red-900 text-pirate-gold px-6 py-3 rounded font-black text-lg uppercase tracking-widest transition-all border-2 border-wood-dark shadow-[4px_4px_0px_#5c4033] active:translate-y-1 active:shadow-[0px_0px_0px_#5c4033]">
+                    Set Sail
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTENT -->
+    <div id="main-app" class="opacity-0 transition-opacity duration-500 overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-[#1a1a1a] shadow-xl border-b-4 border-pirate-red sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+                <div class="py-4 flex flex-col lg:flex-row justify-between items-center gap-4 relative z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-pirate-red flex items-center justify-center shadow-[0_0_15px_rgba(255,215,0,0.3)] border-2 border-pirate-gold shrink-0">
+                            <i data-lucide="skull" class="w-7 h-7 text-pirate-gold"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl sm:text-3xl font-pirate text-pirate-gold tracking-widest drop-shadow-md">Log Pose Tracker</h1>
+                            <p class="text-[10px] sm:text-xs text-gray-300 font-bold uppercase tracking-widest">Grand Line Navigation</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions in Header -->
+                    <div class="flex items-center gap-2 sm:gap-4 flex-wrap justify-center">
+                        <button id="export-data-btn" class="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-parchment hover:bg-[#e8d5a5] text-wood-dark text-xs sm:text-sm font-black uppercase tracking-wider rounded border-2 border-wood-dark shadow-[2px_2px_0px_#5c4033] sm:shadow-[4px_4px_0px_#5c4033] transition-all active:translate-y-1 active:shadow-none">
+                            <i data-lucide="scroll-text" class="w-4 h-4"></i>
+                            <span>Export Logbook</span>
+                        </button>
+                        <button id="export-btn" class="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-pirate-gold hover:bg-yellow-500 text-wood-dark text-xs sm:text-sm font-black uppercase tracking-wider rounded border-2 border-wood-dark shadow-[2px_2px_0px_#5c4033] sm:shadow-[4px_4px_0px_#5c4033] transition-all active:translate-y-1 active:shadow-none">
+                            <i data-lucide="camera" class="w-4 h-4"></i>
+                            <span>Capture Map</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8">
+            
+            <!-- Controls Panel -->
+            <div class="bg-parchment-light p-4 sm:p-6 rounded shadow-lg border-2 border-wood border-opacity-30 flex flex-col md:flex-row gap-6 relative overflow-hidden justify-between items-start md:items-center">
+                
+                <!-- Filters -->
+                <div class="space-y-3 w-full md:w-auto">
+                    <h2 class="text-sm font-pirate text-pirate-red text-xl tracking-widest flex items-center gap-2">
+                        <i data-lucide="map" class="w-4 h-4"></i> Map Filters
+                    </h2>
+                    <div class="flex flex-wrap gap-2" id="filter-buttons">
+                        <button data-filter="all" class="filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all bg-wood-dark text-parchment-light border-2 border-wood-dark shadow-[2px_2px_0px_#8b0000]">All</button>
+                        <button data-filter="manga" class="filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all border-2 border-amber-600 bg-amber-100 text-amber-900 shadow-[2px_2px_0px_#d97706] hover:bg-amber-200">Manga</button>
+                        <button data-filter="mixed" class="filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all border-2 border-sky-600 bg-sky-100 text-sky-900 shadow-[2px_2px_0px_#0284c7] hover:bg-sky-200">Mixed</button>
+                        <button data-filter="anime" class="filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all border-2 border-emerald-600 bg-emerald-100 text-emerald-900 shadow-[2px_2px_0px_#059669] hover:bg-emerald-200">Anime</button>
+                        <button data-filter="filler" class="filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all border-2 border-red-600 bg-red-100 text-red-900 shadow-[2px_2px_0px_#dc2626] hover:bg-red-200">Filler</button>
+                    </div>
+
+                    <label class="flex items-center gap-2 mt-2 cursor-pointer select-none w-max group">
+                        <div id="hide-filler-toggle" class="w-10 h-5 flex items-center rounded-full p-1 transition-all bg-wood-dark border-2 border-wood-dark shadow-inner">
+                            <div id="hide-filler-knob" class="bg-parchment-light w-3 h-3 rounded-full shadow-md transform transition-transform"></div>
+                        </div>
+                        <span class="text-xs font-black uppercase tracking-widest text-wood-dark mt-0.5">Skip Filler</span>
+                    </label>
+                </div>
+
+                <!-- Bulk Actions (Minimized) -->
+                <div class="space-y-2 bg-parchment p-3 rounded border-2 border-wood/20 shadow-inner w-full md:w-auto">
+                    <h2 class="text-sm font-pirate text-pirate-red text-lg tracking-widest flex items-center gap-1.5">
+                        <i data-lucide="swords" class="w-4 h-4"></i> Quick Mark
+                    </h2>
+                    <form id="bulk-form" class="flex gap-2 items-center">
+                        <input 
+                            type="number" 
+                            id="bulk-input"
+                            placeholder="Up to ep..." 
+                            class="w-28 px-3 py-1.5 bg-parchment-light border-2 border-wood rounded shadow-inner focus:ring-0 focus:border-pirate-red text-xs text-wood-dark font-bold placeholder-wood-dark/50 outline-none"
+                        />
+                        <button type="submit" class="bg-pirate-red hover:bg-red-800 text-pirate-gold px-4 py-1.5 rounded font-black text-xs uppercase tracking-wider transition-all border-2 border-pirate-red shadow-[2px_2px_0px_#5c4033] active:translate-y-0.5 active:shadow-none">
+                            Conquer
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- EXPORT CONTAINER (The Wanted Poster - Capture Map) -->
+            <div id="export-container" class="bg-parchment p-4 sm:p-8 relative wanted-border">
+                
+                <!-- Poster Header -->
+                <div class="mb-10 text-center relative">
+                    <h2 class="text-5xl sm:text-7xl font-pirate text-wood-dark tracking-widest mb-1 opacity-90" style="transform: scaleY(1.2);">WANTED</h2>
+                    <div class="w-full h-1 bg-wood-dark mb-1"></div>
+                    <div class="w-full h-0.5 bg-wood-dark mb-6"></div>
+                    
+                    <p class="text-wood-dark text-sm sm:text-base font-black uppercase tracking-[0.3em] mb-4">Dead or Alive - Episode Hunter</p>
+                    
+                    <div class="text-4xl sm:text-5xl font-pirate text-pirate-red tracking-widest drop-shadow-sm mb-6 flex justify-center items-center gap-2">
+                        <i data-lucide="anchor" class="w-8 h-8 text-wood-dark"></i>
+                        <span id="watched-count">0</span> / <span id="total-count">1156</span> EPS
+                        <i data-lucide="anchor" class="w-8 h-8 text-wood-dark"></i>
+                    </div>
+                    
+                    <!-- Pirate Progress Bar -->
+                    <div class="max-w-3xl mx-auto">
+                        <div class="w-full bg-wood-dark rounded-sm h-6 overflow-hidden border-2 border-wood-dark flex relative items-center shadow-inner">
+                            <div id="progress-bar-fill" class="h-full transition-all duration-500 ease-out bg-pirate-red" style="width: 0%"></div>
+                            <span id="progress-text" class="absolute w-full text-center text-xs font-black text-white drop-shadow-md tracking-widest">0% VOYAGE COMPLETE</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Legend -->
+                    <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-[10px] sm:text-xs font-black uppercase tracking-wider text-wood-dark mt-8" id="legend-container">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Sagas & Arcs Container -->
+                <div id="sagas-container" class="space-y-8">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <!-- Marine Stamp / Footer -->
+                <div class="mt-12 flex justify-between items-end border-t-2 border-wood-dark/30 pt-4">
+                    <div class="text-left text-wood-dark/70 text-xs font-bold uppercase tracking-widest">
+                        Issued by Marine HQ<br>
+                        Date: <span id="current-date"></span>
+                    </div>
+                    <div class="w-16 h-16 rounded-full border-4 border-pirate-red flex items-center justify-center text-pirate-red font-pirate text-2xl rotate-12 opacity-80">
+                        SEAL
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- HIDDEN DATA SUMMARY TEMPLATE FOR EXPORT -->
+    <div id="data-summary-container" class="fixed top-0 left-[200vw] w-[1000px] bg-[#f4ebd0] p-12 border-[8px] border-[#5c4033] shadow-[inset_0_0_30px_rgba(92,64,51,0.4)] z-[-1] text-[#3e2723]">
+        <div class="text-center mb-10 relative">
+            <i data-lucide="compass" class="absolute top-0 left-0 w-16 h-16 text-[#3e2723] opacity-30"></i>
+            <i data-lucide="anchor" class="absolute top-0 right-0 w-16 h-16 text-[#3e2723] opacity-30"></i>
+            
+            <h2 class="text-6xl font-pirate text-[#3e2723] tracking-widest mb-2 border-b-4 border-[#3e2723] pb-4 inline-block px-12">CAPTAIN'S LOGBOOK</h2>
+            <p class="text-base font-black uppercase tracking-[0.4em] opacity-80 mt-4">Completion Data by Saga & Arc</p>
+            
+            <div class="mt-6 text-4xl font-pirate text-[#8b0000] bg-[#fdf6e3] inline-block px-8 py-3 rounded border-2 border-[#3e2723] shadow-[4px_4px_0px_#5c4033]">
+                TOTAL: <span id="summary-watched">0</span> / <span id="summary-total">1156</span> EPS (<span id="summary-percent">0</span>%)
+            </div>
+        </div>
+        
+        <div id="data-summary-sagas" class="grid grid-cols-2 gap-x-10 gap-y-8">
+            <!-- Populated by JS on Export -->
+        </div>
+
+        <div class="mt-12 text-center text-sm font-bold uppercase tracking-[0.2em] text-[#3e2723]/70 border-t-4 border-[#3e2723]/30 pt-6 flex justify-between items-center">
+            <span>Generated by Grand Line Tracker</span>
+            <span id="summary-date"></span>
+        </div>
+    </div>
+
+    <script>
+        // --- AUTHENTICATION LOGIC ---
+        const authScreen = document.getElementById('auth-screen');
+        const authForm = document.getElementById('auth-form');
+        const passwordInput = document.getElementById('password-input');
+        const authError = document.getElementById('auth-error');
+        const mainApp = document.getElementById('main-app');
+        const body = document.getElementById('body');
+
+        if (sessionStorage.getItem('opTracker_unlocked') === 'true') {
+            unlockApp(false); 
+        }
+
+        authForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const pass = passwordInput.value.trim().toLowerCase();
+            
+            if (pass === 'onepiece') {
+                sessionStorage.setItem('opTracker_unlocked', 'true');
+                unlockApp(true);
+            } else {
+                authError.classList.remove('hidden');
+                passwordInput.value = '';
+                passwordInput.focus();
+                setTimeout(() => { authError.classList.add('hidden'); }, 3000);
+            }
+        });
+
+        function unlockApp(animate) {
+            body.classList.remove('overflow-hidden');
+            if (animate) {
+                authScreen.classList.add('fade-out');
+                setTimeout(() => {
+                    authScreen.remove();
+                    mainApp.classList.remove('opacity-0');
+                }, 500);
+            } else {
+                authScreen.remove();
+                mainApp.classList.remove('opacity-0');
+            }
+        }
+
+        // --- DATA & SAGAS LOGIC ---
+        const mangaRanges = "1-44, 48-49, 52-53, 62-67, 70-92, 94-97, 100, 103-130, 144-195, 207-212, 217-219, 227-278, 284-290, 293-302, 304-316, 320-325, 337-353, 355-381, 385-405, 408-417, 422-425, 430-452, 459-488, 490-491, 493-496, 500-505, 507-519, 521-541, 543-573, 579-589, 591-624, 629-632, 634-652, 654-656, 658-678, 680-689, 691-730, 732-736, 739-746, 752-774, 776, 779, 783-788, 790-802, 804-806, 808-877, 880, 886, 891-894, 897-906, 908-923, 925-987, 990, 992-1028, 1031-1083, 1085-1156";
+        const mixedRanges = "45-47, 61, 68-69, 101, 226, 354, 421, 489, 520, 574, 625, 628, 633, 653, 657, 679, 690, 731, 738, 751, 777-778, 789, 803, 807, 878-879, 881-885, 887-890, 924, 988-989, 991";
+        const fillerRanges = "54-60, 98-99, 102, 131-143, 196-206, 220-225, 279-283, 291-292, 303, 317-319, 326-336, 382-384, 406-407, 426-429, 457-458, 492, 542, 575-578, 590, 626-627, 747-750, 780-782, 895-896, 907, 1029-1030";
+        const animeRanges = "50-51, 93, 213-216, 418-420, 453-456, 497-499, 506, 737, 775, 1084";
+
+        function parseRanges(rangeStr, type) {
+            const episodes = [];
+            rangeStr.split(',').forEach(part => {
+                const trimmed = part.trim();
+                if (trimmed.includes('-')) {
+                    const [start, end] = trimmed.split('-').map(Number);
+                    for (let i = start; i <= end; i++) episodes.push({ number: i, type });
+                } else {
+                    episodes.push({ number: Number(trimmed), type });
+                }
+            });
+            return episodes;
+        }
+
+        const allEpisodesArray = [
+            ...parseRanges(mangaRanges, 'manga'),
+            ...parseRanges(mixedRanges, 'mixed'),
+            ...parseRanges(fillerRanges, 'filler'),
+            ...parseRanges(animeRanges, 'anime')
+        ];
+        
+        const allEpisodesMap = {};
+        allEpisodesArray.forEach(ep => allEpisodesMap[ep.number] = ep);
+
+        const sagasData = [
+            {
+                saga: "East Blue Saga",
+                arcs: [
+                    { title: "Romance Dawn Arc", episodes: "1-3" },
+                    { title: "Orange Town Arc", episodes: "4-8" },
+                    { title: "Syrup Village Arc", episodes: "9-18" },
+                    { title: "Baratie Arc", episodes: "19-30" },
+                    { title: "Arlong Park Arc", episodes: "31-44" },
+                    { title: "Buggy’s Crew Adventure Chronicles", episodes: "46-47" },
+                    { title: "Loguetown Arc", episodes: "45, 48-53" },
+                    { title: "Warship Island Arc", episodes: "54-61" }
+                ]
+            },
+            {
+                saga: "Arabasta Saga",
+                arcs: [
+                    { title: "Reverse Mountain Arc", episodes: "62-63" },
+                    { title: "Whisky Peak Arc", episodes: "64-67" },
+                    { title: "Diary of Koby and Helmeppo Arc", episodes: "68-69" },
+                    { title: "Little Garden Arc", episodes: "70-77" },
+                    { title: "Drum Island Arc", episodes: "78-91" },
+                    { title: "Arabasta Arc", episodes: "92-130" },
+                    { title: "Post-Arabasta Arc", episodes: "131-135" }
+                ]
+            },
+            {
+                saga: "Sky Island Saga",
+                arcs: [
+                    { title: "Goat Island Arc", episodes: "136-138" },
+                    { title: "Ruluka Island Arc", episodes: "139-143" },
+                    { title: "Jaya Arc", episodes: "144-152" },
+                    { title: "Skypiea Arc", episodes: "153-195" },
+                    { title: "G-8 Arc", episodes: "196-206" }
+                ]
+            },
+            {
+                saga: "Water 7 Saga",
+                arcs: [
+                    { title: "Long Ring Long Land Arc", episodes: "207-219" },
+                    { title: "Ocean’s Dream Arc", episodes: "220-224" },
+                    { title: "Foxy’s Return Arc", episodes: "225-226" },
+                    { title: "Water 7 Arc", episodes: "227-263" },
+                    { title: "Enies Lobby Arc", episodes: "264-312" },
+                    { title: "Post-Enies Lobby Arc", episodes: "313-325" }
+                ]
+            },
+            {
+                saga: "Thriller Bark Saga",
+                arcs: [
+                    { title: "Ice Hunter Arc", episodes: "326-336" },
+                    { title: "Thriller Bark Arc", episodes: "337-381" },
+                    { title: "Spa Island Arc", episodes: "382-384" }
+                ]
+            },
+            {
+                saga: "Summit War Saga",
+                arcs: [
+                    { title: "Sabaody Archipelago Arc", episodes: "385-405" },
+                    { title: "Boss Luffy Arc", episodes: "406-407" },
+                    { title: "Amazon Lily Arc", episodes: "408-417" },
+                    { title: "Straw Hat’s Separation Serial", episodes: "418-421, 453-456" },
+                    { title: "Impel Down Arc", episodes: "422-425, 430-452" },
+                    { title: "Little East Blue Arc", episodes: "426-429" },
+                    { title: "Marineford Arc", episodes: "457-489" },
+                    { title: "Post-War Arc", episodes: "490-516" }
+                ]
+            },
+            {
+                saga: "Fish-Man Island Saga",
+                arcs: [
+                    { title: "Return to Sabaody Arc", episodes: "517-522" },
+                    { title: "Fish-Man Island Arc", episodes: "523-574" }
+                ]
+            },
+            {
+                saga: "Dressrosa Saga",
+                arcs: [
+                    { title: "Z’s Ambition Arc", episodes: "575-578" },
+                    { title: "Punk Hazard Arc", episodes: "579-625" },
+                    { title: "Caesar Retrieval Arc", episodes: "626-628" },
+                    { title: "Dressrosa Arc", episodes: "629-746" }
+                ]
+            },
+            {
+                saga: "Four Emperors Saga",
+                arcs: [
+                    { title: "Silver Mine Arc", episodes: "747-750" },
+                    { title: "Zou Arc", episodes: "751-779" },
+                    { title: "Marine Rookie Arc", episodes: "780-782" },
+                    { title: "Whole Cake Island Arc", episodes: "783-877" },
+                    { title: "Reverie Arc", episodes: "878-889" },
+                    { title: "Wano Country Arc", episodes: "890-1085" }
+                ]
+            },
+            {
+                saga: "Final Saga",
+                arcs: [
+                    { title: "Egghead Arc", episodes: "1086-1155" },
+                    { title: "Elbaf Arc", episodes: "1156" }
+                ]
+            }
+        ];
+
+        function parseArcRangeToNumbers(rangeStr) {
+            const numbers = [];
+            rangeStr.split(',').forEach(part => {
+                const trimmed = part.trim();
+                if (trimmed.includes('-')) {
+                    const [start, end] = trimmed.split('-').map(Number);
+                    for (let i = start; i <= end; i++) numbers.push(i);
+                } else {
+                    numbers.push(Number(trimmed));
+                }
+            });
+            return numbers;
+        }
+
+        const typeConfig = {
+            manga: { label: 'Manga Canon', bg: 'bg-[#fcd34d]', text: 'text-[#78350f]', border: 'border-[#b45309]', activeClass: 'ring-2 ring-[#b45309] bg-[#fcd34d] text-[#78350f] border-[#b45309]', shadow: 'shadow-[2px_2px_0px_#b45309]' },
+            mixed: { label: 'Mixed Canon', bg: 'bg-[#7dd3fc]', text: 'text-[#0c4a6e]', border: 'border-[#0284c7]', activeClass: 'ring-2 ring-[#0284c7] bg-[#7dd3fc] text-[#0c4a6e] border-[#0284c7]', shadow: 'shadow-[2px_2px_0px_#0284c7]' },
+            anime: { label: 'Anime Canon', bg: 'bg-[#86efac]', text: 'text-[#14532d]', border: 'border-[#16a34a]', activeClass: 'ring-2 ring-[#16a34a] bg-[#86efac] text-[#14532d] border-[#16a34a]', shadow: 'shadow-[2px_2px_0px_#16a34a]' },
+            filler: { label: 'Filler Island', bg: 'bg-[#fca5a5]', text: 'text-[#7f1d1d]', border: 'border-[#dc2626]', activeClass: 'ring-2 ring-[#dc2626] bg-[#fca5a5] text-[#7f1d1d] border-[#dc2626]', shadow: 'shadow-[2px_2px_0px_#dc2626]' },
+        };
+
+        // State Management
+        let state = {
+            watched: JSON.parse(localStorage.getItem('opTracker_personal_bounty')) || {},
+            filterType: 'all',
+            hideFiller: false
+        };
+
+        function saveState() {
+            localStorage.setItem('opTracker_personal_bounty', JSON.stringify(state.watched));
+            render();
+        }
+
+        // --- UI Rendering ---
+        function initializeUI() {
+            lucide.createIcons();
+            const today = new Date();
+            const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            document.getElementById('current-date').textContent = dateString;
+            document.getElementById('summary-date').textContent = dateString;
+
+            // Setup Legend
+            const legendHtml = Object.entries(typeConfig).map(([key, config]) => `
+                <span class="flex items-center gap-1.5 bg-parchment-light px-2.5 py-1 rounded border-2 ${config.border} ${config.text} shadow-[2px_2px_0px_currentColor]">
+                    <i data-lucide="circle-dot" class="w-3 h-3"></i> ${config.label}
+                </span>
+            `).join('') + `
+                <span class="flex items-center gap-1.5 bg-wood-dark text-pirate-gold px-2.5 py-1 rounded border-2 border-wood-dark shadow-[2px_2px_0px_#8b0000]">
+                    <i data-lucide="skull" class="w-3 h-3"></i> Conquered
+                </span>
+            `;
+            document.getElementById('legend-container').innerHTML = legendHtml;
+            lucide.createIcons();
+            render();
+        }
+
+        function render() {
+            // Update Filter Buttons styling
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                const fType = btn.getAttribute('data-filter');
+                if (fType === state.filterType) {
+                    if (fType === 'all') {
+                        btn.className = "filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all bg-wood-dark text-parchment-light border-2 border-wood-dark shadow-[2px_2px_0px_#8b0000] ring-2 ring-pirate-red ring-offset-1 ring-offset-parchment-light";
+                    } else {
+                        btn.className = `filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all border-2 ${typeConfig[fType].activeClass} shadow-[2px_2px_0px_currentColor] ring-offset-1 ring-offset-parchment-light`;
+                    }
+                } else {
+                    if (fType === 'all') {
+                        btn.className = "filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all bg-wood-dark/80 text-parchment border-2 border-wood opacity-70 hover:opacity-100";
+                    } else {
+                        const config = typeConfig[fType];
+                        btn.className = `filter-btn px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all border-2 ${config.border} bg-parchment-light text-wood-dark opacity-70 hover:opacity-100 hover:${config.bg}`;
+                    }
+                }
+            });
+
+            // Update Hide Filler Toggle
+            const toggleBg = document.getElementById('hide-filler-toggle');
+            const toggleKnob = document.getElementById('hide-filler-knob');
+            if (state.hideFiller) {
+                toggleBg.classList.replace('bg-wood-dark', 'bg-pirate-red');
+                toggleKnob.classList.add('translate-x-5');
+            } else {
+                toggleBg.classList.replace('bg-pirate-red', 'bg-wood-dark');
+                toggleKnob.classList.remove('translate-x-5');
+            }
+
+            let htmlOutput = '';
+            let totalVisibleEpisodes = 0;
+
+            sagasData.forEach(saga => {
+                let sagaContentHtml = '';
+
+                saga.arcs.forEach(arc => {
+                    const arcEpNums = parseArcRangeToNumbers(arc.episodes);
+                    const visibleArcEps = arcEpNums.map(num => allEpisodesMap[num]).filter(ep => {
+                        if (!ep) return false;
+                        if (state.hideFiller && ep.type === 'filler') return false;
+                        if (state.filterType !== 'all' && ep.type !== state.filterType) return false;
+                        return true;
+                    });
+
+                    if (visibleArcEps.length > 0) {
+                        totalVisibleEpisodes += visibleArcEps.length;
+
+                        const buttonsHtml = visibleArcEps.map(ep => {
+                            const config = typeConfig[ep.type];
+                            const isWatched = state.watched[ep.number];
+                            
+                            const baseClasses = "episode-btn relative aspect-square rounded border-2 flex flex-col items-center justify-center font-black text-xs sm:text-sm transition-all duration-100 select-none overflow-hidden cursor-pointer";
+                            const stateClasses = isWatched 
+                                ? "bg-wood-dark border-wood-dark text-pirate-gold scale-95 shadow-inner opacity-90" 
+                                : `${config.bg} ${config.text} ${config.border} ${config.shadow} hover:-translate-y-1 hover:brightness-110`;
+
+                            return `
+                                <button data-num="${ep.number}" class="${baseClasses} ${stateClasses}" title="Episode ${ep.number} - ${config.label}">
+                                    <span class="z-10 pointer-events-none drop-shadow-sm">${ep.number}</span>
+                                    ${isWatched ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><i data-lucide="skull" class="w-6 h-6 text-pirate-red opacity-80 drop-shadow-md"></i></div>` : ''}
+                                </button>
+                            `;
+                        }).join('');
+
+                        sagaContentHtml += `
+                            <div class="mb-5">
+                                <h4 class="text-lg font-pirate text-wood-dark border-b-2 border-wood/20 pb-1 mb-2 flex justify-between items-end">
+                                    <span>${arc.title}</span>
+                                    <span class="text-[10px] font-sans font-bold text-wood/60 tracking-widest uppercase">Eps ${arc.episodes}</span>
+                                </h4>
+                                <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14 gap-2">
+                                    ${buttonsHtml}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (sagaContentHtml !== '') {
+                    htmlOutput += `
+                        <div class="saga-section bg-parchment-light/60 p-4 sm:p-6 rounded border-2 border-wood/30 shadow-inner">
+                            <h3 class="text-2xl sm:text-3xl font-pirate text-pirate-red text-center mb-6 drop-shadow-sm tracking-widest uppercase">
+                                ~ ${saga.saga} ~
+                            </h3>
+                            ${sagaContentHtml}
+                        </div>
+                    `;
+                }
+            });
+
+            if (totalVisibleEpisodes === 0) {
+                htmlOutput = `
+                    <div class="col-span-full text-center py-20 bg-parchment border-4 border-dashed border-wood/30 rounded">
+                        <i data-lucide="compass" class="w-16 h-16 text-wood/40 mx-auto mb-4"></i>
+                        <p class="text-wood-dark font-black uppercase tracking-widest text-lg">No islands match your log pose.</p>
+                    </div>`;
+            }
+
+            document.getElementById('sagas-container').innerHTML = htmlOutput;
+            
+            const watchedCount = Object.values(state.watched).filter(Boolean).length;
+            const progressPercentage = Math.round((watchedCount / allEpisodesArray.length) * 100);
+            
+            document.getElementById('watched-count').textContent = watchedCount;
+            document.getElementById('summary-watched').textContent = watchedCount;
+            document.getElementById('progress-bar-fill').style.width = `${progressPercentage}%`;
+            document.getElementById('progress-text').textContent = `${progressPercentage}% VOYAGE COMPLETE`;
+            document.getElementById('summary-percent').textContent = progressPercentage;
+            
+            lucide.createIcons();
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeUI();
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    state.filterType = e.target.getAttribute('data-filter');
+                    render();
+                });
+            });
+
+            document.getElementById('hide-filler-toggle').parentElement.addEventListener('click', () => {
+                state.hideFiller = !state.hideFiller;
+                render();
+            });
+
+            document.getElementById('bulk-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const upTo = parseInt(document.getElementById('bulk-input').value);
+                if (!isNaN(upTo) && upTo > 0) {
+                    const newWatched = { ...state.watched };
+                    for (let i = 1; i <= upTo; i++) {
+                        if (allEpisodesMap[i]) {
+                            newWatched[i] = true;
+                        }
+                    }
+                    state.watched = newWatched;
+                    document.getElementById('bulk-input').value = '';
+                    saveState();
+                }
+            });
+
+            document.getElementById('sagas-container').addEventListener('click', (e) => {
+                const btn = e.target.closest('.episode-btn');
+                if (btn) {
+                    const num = parseInt(btn.getAttribute('data-num'));
+                    state.watched[num] = !state.watched[num];
+                    saveState();
+                }
+            });
+
+            // Export PNG (Wanted Poster - Grid map)
+            document.getElementById('export-btn').addEventListener('click', async () => {
+                const btn = document.getElementById('export-btn');
+                const originalHtml = btn.innerHTML;
+                try {
+                    btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="hidden sm:inline">Printing...</span>`;
+                    lucide.createIcons();
+                    btn.disabled = true;
+                    btn.classList.add('opacity-75');
+
+                    const element = document.getElementById('export-container');
+                    const canvas = await html2canvas(element, { backgroundColor: '#f4ebd0', scale: 2, useCORS: true, logging: false });
+                    
+                    const watchedCount = Object.values(state.watched).filter(Boolean).length;
+                    const link = document.createElement('a');
+                    link.download = `Wanted-Poster-${watchedCount}-Bounty.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (err) {
+                    console.error(err);
+                    alert("Failed to print poster.");
+                } finally {
+                    btn.innerHTML = originalHtml;
+                    lucide.createIcons();
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75');
+                }
+            });
+
+            // Export PNG (Logbook - Data Summary)
+            document.getElementById('export-data-btn').addEventListener('click', async () => {
+                const btn = document.getElementById('export-data-btn');
+                const originalHtml = btn.innerHTML;
+                try {
+                    btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="hidden sm:inline">Writing...</span>`;
+                    lucide.createIcons();
+                    btn.disabled = true;
+                    btn.classList.add('opacity-75');
+
+                    // 1. Generate HTML for Summary Template
+                    let summaryHtml = '';
+                    sagasData.forEach(saga => {
+                        let sagaTotal = 0;
+                        let sagaWatched = 0;
+                        let arcsHtml = '';
+
+                        saga.arcs.forEach(arc => {
+                            const arcEpNums = parseArcRangeToNumbers(arc.episodes);
+                            const validArcEps = arcEpNums.filter(num => allEpisodesMap[num]);
+                            const arcTotalCount = validArcEps.length;
+                            const arcWatchedCount = validArcEps.filter(num => state.watched[num]).length;
+
+                            if (arcTotalCount > 0) {
+                                sagaTotal += arcTotalCount;
+                                sagaWatched += arcWatchedCount;
+
+                                const arcPercent = Math.round((arcWatchedCount / arcTotalCount) * 100) || 0;
+                                const arcColor = arcPercent === 100 ? 'text-[#14532d]' : 'text-[#3e2723]';
+                                
+                                arcsHtml += `
+                                    <div class="flex justify-between items-center text-sm font-bold border-b border-[#5c4033]/20 py-1.5 ${arcColor}">
+                                        <span>${arc.title}</span>
+                                        <span class="bg-[#f4ebd0] px-2 py-0.5 rounded shadow-inner border border-[#5c4033]/20">${arcWatchedCount} / ${arcTotalCount}</span>
+                                    </div>
+                                `;
+                            }
+                        });
+
+                        const sagaPercent = Math.round((sagaWatched / sagaTotal) * 100) || 0;
+                        const sagaColor = sagaPercent === 100 ? 'text-[#8b0000]' : 'text-[#3e2723]';
+
+                        if (sagaTotal > 0) {
+                            summaryHtml += `
+                                <div class="bg-[#fdf6e3] p-5 border-2 border-[#5c4033] rounded shadow-[2px_2px_0px_#5c4033]">
+                                    <h3 class="text-3xl font-pirate ${sagaColor} tracking-widest mb-3 border-b-2 border-[#8b0000]/30 flex justify-between items-end pb-1">
+                                        <span>${saga.saga}</span>
+                                        <span class="text-xl">${sagaPercent}%</span>
+                                    </h3>
+                                    <div class="space-y-1">
+                                        ${arcsHtml}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    document.getElementById('data-summary-sagas').innerHTML = summaryHtml;
+                    
+                    // Allow DOM to update
+                    await new Promise(r => setTimeout(r, 100));
+
+                    // 2. html2canvas magic
+                    const element = document.getElementById('data-summary-container');
+                    const canvas = await html2canvas(element, { 
+                        backgroundColor: '#f4ebd0', 
+                        scale: 2, 
+                        useCORS: true, 
+                        logging: false 
+                    });
+                    
+                    const link = document.createElement('a');
+                    link.download = `Pirate-Logbook-Summary.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (err) {
+                    console.error(err);
+                    alert("Failed to export logbook.");
+                } finally {
+                    btn.innerHTML = originalHtml;
+                    lucide.createIcons();
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
+
